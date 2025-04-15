@@ -348,8 +348,7 @@ exit(int status, const char *msg)
 {
   struct proc *p = myproc();
 
-  // Store the exit message in the process structure
-  safestrcpy(p->exit_msg, msg, sizeof(p->exit_msg));
+ 
 
   if(p == initproc)
     panic("init exiting");
@@ -377,6 +376,9 @@ exit(int status, const char *msg)
   wakeup(p->parent);
   
   acquire(&p->lock);
+  // Store the exit message in the process structure
+  safestrcpy(p->exit_msg, msg, sizeof(p->exit_msg));
+
 
   p->xstate = status;
   p->state = ZOMBIE;

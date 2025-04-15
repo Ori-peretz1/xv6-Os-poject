@@ -104,5 +104,5 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  char exit_msg[32];
+  char exit_msg[32];           // Exit message (debugging) - task 3 
 };

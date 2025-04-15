@@ -7,24 +7,16 @@
 #include "proc.h"
 
 uint64
+
 sys_exit(void)
 { // part 3 
-  int status;
+  int n;
   char msg[32];  // buffer for the exit message
+  argint(0,&n);
+  argstr(1,msg, sizeof(msg)); // part 3 - fetching the msg
+  exit(n,msg); // part 3 - passing the msg to exit
+  return 0; // not reached  
 
-  // Get first syscall argument: exit status
-  argint(0, &status);
-
-  // Get second syscall argument: string from user space into msg buffer
-  if (argstr(1, msg, sizeof(msg)) < 0) {
-    // If fetching the string fails, store a fallback message
-    safestrcpy(msg, "no message", sizeof(msg));
-  }
-
-  // Call kernel-level exit with the status and message
-  exit(status, msg);
-
-  return 0; // not reached
 }
 
 
