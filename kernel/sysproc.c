@@ -33,6 +33,36 @@ sys_fork(void)
 }
 
 uint64
+sys_forkn(void)
+{
+  int n;
+  int pids[16]; // מקצה מקום למערך של 16 תהליכים
+  uint64 pids_user;
+
+  // קריאת הפרמטרים מהמשתמש
+  argint(0, &n);
+  argaddr(1, &pids_user);
+
+  if (n < 1 || n > 16) {
+    return -1;
+  }
+
+  int ret = forkn(n, pids);
+
+
+  // הורה: מעתיק את המערך למרחב המשתמש
+  if(ret==0) {
+    if (copyout(myproc()->pagetable, pids_user, (char *)pids, n * sizeof(int)) < 0) {
+      return -1;
+    }
+  }
+
+  return ret;
+}
+
+
+
+uint64
 sys_wait(void)
 {
   uint64 p;
@@ -40,6 +70,31 @@ sys_wait(void)
   argaddr(0, &p);
   argaddr(1, &msg_addr);
   return wait(p, msg_addr);
+}
+
+uint64
+sys_waitall(void)
+{
+  uint64 n_addr, statuses_addr;
+  int statuses[NPROC]; 
+  int n;
+  
+  argaddr(0, &n_addr);
+  argaddr(1, &statuses_addr);
+  
+  int ret = waitall(&n, statuses);
+  
+  if(ret == 0) {
+    if(copyout(myproc()->pagetable, n_addr, (char*)&n, sizeof(int)) < 0)
+      return -1;
+    
+    if(n > 0) {
+      if(copyout(myproc()->pagetable, statuses_addr, (char*)statuses, n * sizeof(int)) < 0)
+        return -1;
+    }
+  }
+  
+  return ret;
 }
 
 uint64
@@ -107,3 +162,6 @@ sys_memsize(void)
   struct proc *p = myproc();
   return p->sz; // memory size
 }
+
+
+

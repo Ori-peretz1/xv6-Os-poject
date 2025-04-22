@@ -23,7 +23,10 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int memsize(void);
-
+//task 4
+int forkn(int n,int *);
+int waitall(int *,int*);
+// end of task 4
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

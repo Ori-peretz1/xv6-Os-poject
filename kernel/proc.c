@@ -10,7 +10,13 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
-struct proc *initproc;
+struct proc *initproc; //task 4 
+// מבנה עזר לשמירת הילדים לפני שהם משוחררים ל־RUNNABLE
+struct child_info {
+  struct proc *p;
+  int pid;
+};
+
 
 int nextpid = 1;
 struct spinlock pid_lock;
@@ -691,3 +697,129 @@ procdump(void)
     printf("\n");
   }
 }
+//----------------------------------------------------------------------------------------------------------------------
+
+int
+forkn(int n, int* pids)
+{
+  if(n <= 0 || n > 16)
+    return -1;
+
+  struct proc *parent = myproc();
+  struct proc *child;
+  struct proc *created[16];
+
+  for(int i = 0; i < n; i++){
+    if((child = allocproc()) == 0){
+      for(int j = 0; j < i; j++){
+        acquire(&created[j]->lock);
+        freeproc(created[j]);
+        release(&created[j]->lock);
+      }
+      return -1;
+    }
+
+    created[i] = child;
+    pids[i] = child->pid;
+
+    if(uvmcopy(parent->pagetable, child->pagetable, parent->sz) < 0){
+      freeproc(child);
+      release(&child->lock);
+      for(int j = 0; j < i; j++){
+        acquire(&created[j]->lock);
+        freeproc(created[j]);
+        release(&created[j]->lock);
+      }
+      return -1;
+    }
+
+    child->sz = parent->sz;
+    *(child->trapframe) = *(parent->trapframe);
+    child->trapframe->a0 = i + 1;
+
+    for(int fd = 0; fd < NOFILE; fd++){
+      if(parent->ofile[fd])
+        child->ofile[fd] = filedup(parent->ofile[fd]);
+    }
+    child->cwd = idup(parent->cwd);
+    safestrcpy(child->name, parent->name, sizeof(parent->name));
+    release(&child->lock);
+  }
+
+  acquire(&wait_lock);
+  for(int i = 0; i < n; i++){
+    created[i]->parent = parent;
+  }
+  release(&wait_lock);
+
+  for(int i = 0; i < n; i++){
+    acquire(&created[i]->lock);
+    created[i]->state = RUNNABLE;
+    release(&created[i]->lock);
+  }
+
+  return 0;
+}
+
+// --------------------------- Compact waitall Implementation ---------------------------
+
+int 
+waitall(int *n, int *statuses)
+{
+  struct proc *p = myproc();
+  *n = 0;
+
+  acquire(&wait_lock);
+
+  int found = 0;
+  for(struct proc *proc_iter = proc; proc_iter < &proc[NPROC]; proc_iter++){
+    acquire(&proc_iter->lock);
+    if(proc_iter->parent == p && proc_iter->state != UNUSED){
+      found = 1;
+      release(&proc_iter->lock);
+      break;
+    }
+    release(&proc_iter->lock);
+  }
+
+  if(!found){
+    release(&wait_lock);
+    return 0;
+  }
+
+  for(;;){
+    int completed = 1;
+    *n = 0;
+
+    for(struct proc *proc_iter = proc; proc_iter < &proc[NPROC]; proc_iter++){
+      acquire(&proc_iter->lock);
+      if(proc_iter->parent == p){
+        if(proc_iter->state == ZOMBIE){
+          statuses[*n] = proc_iter->xstate;
+          (*n)++;
+        } else if(proc_iter->state != UNUSED){
+          completed = 0;
+        }
+      }
+      release(&proc_iter->lock);
+    }
+
+    if(completed && *n > 0){
+      for(struct proc *proc_iter = proc; proc_iter < &proc[NPROC]; proc_iter++){
+        acquire(&proc_iter->lock);
+        if(proc_iter->parent == p && proc_iter->state == ZOMBIE){
+          freeproc(proc_iter);
+        }
+        release(&proc_iter->lock);
+      }
+      release(&wait_lock);
+      return 0;
+    }
+
+    if(killed(p)){
+      release(&wait_lock);
+      return -1;
+    }
+
+    sleep(p, &wait_lock);
+  }}
